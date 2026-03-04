@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Calor de Riesgos Empresariales</title>
+    <!-- Estilos y librerías -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2em;
+        }
+        
+        .header p {
+            margin: 10px 0 0;
+            opacity: 0.9;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            gap: 25px;
+            margin-bottom: 25px;
+        }
+        
+        /* Estilos para el mapa de calor */
+        .heatmap-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            border: 1px solid #e9ecef;
+        }
+        
+        .matriz-riesgos {
+            margin-top: 20px;
+        }
+        
+        .matriz-titulos {
+            display: grid;
+            grid-template-columns: 80px repeat(5, 1fr);
+            gap: 5px;
+            margin-bottom: 5px;
+        }
+        
+        .matriz-filas {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .matriz-fila {
+            display: grid;
+            grid-template-columns: 80px repeat(5, 1fr);
+            gap: 5px;
+        }
+        
+        .celda-titulo {
+            background: #1e3c72;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            border-radius: 8px;
+            padding: 15px 5px;
+            font-size: 14px;
+        }
+        
+        .celda-impacto {
+            background: #2a5298;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            border-radius: 8px;
+            padding: 15px 5px;
+            font-size: 14px;
+        }
+        
+        .celda-riesgo {
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            color: white;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            cursor: pointer;
+            transition: all 0.3s;
+            padding: 10px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .celda-riesgo:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            z-index: 10;
+        }
+        
+        .celda-riesgo.critico { background-color: #dc3545; }
+        .celda-riesgo.alto { background-color: #fd7e14; }
+        .celda-riesgo.medio { background-color: #ffc107; color: #000; }
+        .celda-riesgo.bajo { background-color: #28a745; }
+        
+        .numero-riesgos {
+            font-size: 20px;
+            font-weight: 800;
+        }
+        
+        .texto-riesgos {
+            font-size: 11px;
+            opacity: 0.9;
+        }
+        
+        .leyenda {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .leyenda-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .leyenda-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 5px;
+        }
+        
+        .controls-panel {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            border: 1px solid #e9ecef;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            font-weight: 600;
+            margin-bottom: 5px;
+            display: block;
+            color: #1e3c72;
+        }
+        
+        .form-control, .form-select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .form-control:focus, .form-select:focus {
+            border-color: #2a5298;
+            outline: none;
+        }
+        
+        /* Estilos para sliders */
+        .slider-container {
+            margin: 15px 0;
+        }
+        
+        .slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: linear-gradient(90deg, #28a745, #ffc107, #fd7e14, #dc3545);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: white;
+            border: 3px solid #1e3c72;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        .slider-valor {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+            font-size: 12px;
+            color: #6c757d;
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(30, 60, 114, 0.3);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+            color: white;
+        }
+        
+        .btn-export {
+            background: linear-gradient(135deg, #6610f2, #6f42c1);
+            color: white;
+            width: 100%;
+            margin-top: 20px;
+        }
+        
+        /* Indicadores */
+        .indicators-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .indicator-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            text-align: center;
+            border-left: 4px solid;
+        }
+        
+        .indicator-card.critico { border-left-color: #dc3545; }
+        .indicator-card.alto { border-left-color: #fd7e14; }
+        .indicator-card.medio { border-left-color: #ffc107; }
+        .indicator-card.bajo { border-left-color: #28a745; }
+        
+        .indicator-valor {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 10px 0;
+            color: #1e3c72;
+        }
+        
+        .indicator-label {
+            color: #6c757d;
+            font-size: 14px;
+        }
+        
+        /* Gráficos */
+        .charts-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            border: 1px solid #e9ecef;
+        }
+        
+        .chart-container h4 {
+            margin: 0 0 15px 0;
+            color: #1e3c72;
+            font-size: 16px;
+            text-align: center;
+        }
+        
+        .chart-wrapper {
+            height: 250px;
+            position: relative;
+        }
+        
+        /* Tabla */
+        .risks-table {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            border: 1px solid #e9ecef;
+            overflow-x: auto;
+        }
+        
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .table th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #1e3c72;
+        }
+        
+        .table td {
+            padding: 12px;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: white;
+        }
+        
+        .badge.critico { background: #dc3545; }
+        .badge.alto { background: #fd7e14; }
+        .badge.medio { background: #ffc107; color: #000; }
+        .badge.bajo { background: #28a745; }
+        
+        .categoria-tag {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: 600;
+            background: #e9ecef;
+            color: #495057;
+        }
+        
+        /* Notificaciones */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 10px;
+            color: white;
+            font-weight: 600;
+            z-index: 9999;
+            animation: slideIn 0.3s ease-out;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        .notification.success { background: #28a745; }
+        .notification.error { background: #dc3545; }
+        .notification.warning { background: #ffc107; color: #000; }
+        .notification.info { background: #17a2b8; }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+        
+        /* Loading */
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9998;
+        }
+        
+        .loading.active {
+            display: flex;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #1e3c72;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+    </div>
+    
+    <div class="container" id="dashboard-content">
+        <div class="header">
+            <h1>🎯 Mapa de Calor de Riesgos Empresariales</h1>
+            <p>Visualiza, evalúa y gestiona los riesgos de tu empresa basado en probabilidad e impacto</p>
+        </div>
+        
+        <div class="indicators-row" id="indicators-container">
+            <!-- Se llena dinámicamente -->
+        </div>
+        
+        <div class="dashboard">
+            <div class="heatmap-container">
+                <h3>🗺️ Matriz de Riesgos (Probabilidad vs Impacto)</h3>
+                
+                <div class="matriz-riesgos">
+                    <div class="matriz-titulos">
+                        <div class="celda-titulo"></div>
+                        <div class="celda-impacto">Impacto 1</div>
+                        <div class="celda-impacto">Impacto 2</div>
+                        <div class="celda-impacto">Impacto 3</div>
+                        <div class="celda-impacto">Impacto 4</div>
+                        <div class="celda-impacto">Impacto 5</div>
+                    </div>
+                    
+                    <div class="matriz-filas" id="matriz-riesgos">
+                        <!-- Se llena dinámicamente -->
+                    </div>
+                </div>
+                
+                <div class="leyenda">
+                    <div class="leyenda-item">
+                        <div class="leyenda-color" style="background: #dc3545;"></div>
+                        <span>Crítico (15-25)</span>
+                    </div>
+                    <div class="leyenda-item">
+                        <div class="leyenda-color" style="background: #fd7e14;"></div>
+                        <span>Alto (8-12)</span>
+                    </div>
+                    <div class="leyenda-item">
+                        <div class="leyenda-color" style="background: #ffc107;"></div>
+                        <span>Medio (3-6)</span>
+                    </div>
+                    <div class="leyenda-item">
+                        <div class="leyenda-color" style="background: #28a745;"></div>
+                        <span>Bajo (1-2)</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="controls-panel">
+                <h3>⚙️ Gestión de Riesgos</h3>
+                
+                <div class="form-group">
+                    <label>Categoría</label>
+                    <select class="form-select" id="riskCategory">
+                        <option value="Estratégico">📊 Estratégico</option>
+                        <option value="Operacional">⚙️ Operacional</option>
+                        <option value="Financiero">💰 Financiero</option>
+                        <option value="Cumplimiento">⚖️ Cumplimiento</option>
+                        <option value="Tecnológico">💻 Tecnológico</option>
+                        <option value="Reputacional">📢 Reputacional</option>
+                        <option value="RRHH">👥 RR.HH.</option>
+                        <option value="Mercado">📈 Mercado</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Nombre del Riesgo</label>
+                    <input type="text" class="form-control" id="riskName" placeholder="Ej: Ciberataque, Crisis de liquidez...">
+                </div>
+                
+                <div class="form-group">
+                    <label>Probabilidad (1-5)</label>
+                    <input type="range" class="slider" id="probability" min="1" max="5" step="1" value="3">
+                    <div class="slider-valor">
+                        <span>Muy Baja</span>
+                        <span id="probValue">3</span>
+                        <span>Muy Alta</span>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Impacto (1-5)</label>
+                    <input type="range" class="slider" id="impact" min="1" max="5" step="1" value="3">
+                    <div class="slider-valor">
+                        <span>Insignificante</span>
+                        <span id="impactValue">3</span>
+                        <span>Catastrófico</span>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Descripción</label>
+                    <textarea class="form-control" id="riskDescription" rows="2" placeholder="Describe el riesgo..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>Plan de Mitigación</label>
+                    <textarea class="form-control" id="mitigationPlan" rows="2" placeholder="Acciones para mitigar..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>Responsable</label>
+                    <input type="text" class="form-control" id="responsible" placeholder="Área o persona responsable">
+                </div>
+                
+                <div>
+                    <button class="btn btn-primary" onclick="addRisk()">➕ Agregar Riesgo</button>
+                    <button class="btn btn-success" onclick="loadSampleRisks()">🎲 Ejemplos</button>
+                    <button class="btn btn-danger" onclick="clearAllRisks()">🗑️ Limpiar</button>
+                </div>
+                
+                <button class="btn btn-export" onclick="exportToPDF()">📄 Exportar a PDF</button>
+            </div>
+        </div>
+        
+        <div class="charts-row">
+            <div class="chart-container">
+                <h4>📊 Distribución por Categoría</h4>
+                <div class="chart-wrapper">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h4>🎯 Nivel de Riesgo</h4>
+                <div class="chart-wrapper">
+                    <canvas id="levelChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h4>📈 Score de Riesgos</h4>
+                <div class="chart-wrapper">
+                    <canvas id="scoreChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="risks-table">
+            <h3>📋 Registro de Riesgos</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Categoría</th>
+                        <th>Riesgo</th>
+                        <th>Prob</th>
+                        <th>Imp</th>
+                        <th>Score</th>
+                        <th>Nivel</th>
+                        <th>Responsable</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="risksTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Estado de la aplicación
+        let risks = [];
+        let charts = {};
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', function() {
+            window.scrollTo(0, 0);
+            initializeCharts();
+            loadSampleRisks();
+        });
+
+        // Actualizar valores de sliders
+        document.getElementById('probability').addEventListener('input', function(e) {
+            document.getElementById('probValue').textContent = e.target.value;
+        });
+
+        document.getElementById('impact').addEventListener('input', function(e) {
+            document.getElementById('impactValue').textContent = e.target.value;
+        });
+
+        function initializeCharts() {
+            // Gráfico de categorías
+            const ctxCategory = document.getElementById('categoryChart').getContext('2d');
+            charts.category = new Chart(ctxCategory, {
+                type: 'pie',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: [
+                            '#1e3c72', '#2a5298', '#4a6fa5', '#6b8cae',
+                            '#9bb7d4', '#b8d4e7', '#cfe3f9', '#e3f0ff'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+
+            // Gráfico de niveles
+            const ctxLevel = document.getElementById('levelChart').getContext('2d');
+            charts.level = new Chart(ctxLevel, {
+                type: 'bar',
+                data: {
+                    labels: ['Crítico', 'Alto', 'Medio', 'Bajo'],
+                    datasets: [{
+                        label: 'Cantidad de Riesgos',
+                        data: [0, 0, 0, 0],
+                        backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#28a745']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            stepSize: 1
+                        }
+                    }
+                }
+            });
+
+            // Gráfico de scores
+            const ctxScore = document.getElementById('scoreChart').getContext('2d');
+            charts.score = new Chart(ctxScore, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Score de Riesgo',
+                        data: [],
+                        borderColor: '#1e3c72',
+                        backgroundColor: 'rgba(30, 60, 114, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 25
+                        }
+                    }
+                }
+            });
+        }
+
+        function calculateRiskLevel(probability, impact) {
+            const score = probability * impact;
+            if (score >= 15) return 'Crítico';
+            if (score >= 8) return 'Alto';
+            if (score >= 3) return 'Medio';
+            return 'Bajo';
+        }
+
+        function getRiskClass(probability, impact) {
+            const level = calculateRiskLevel(probability, impact);
+            return level.toLowerCase();
+        }
+
+        function addRisk() {
+            const category = document.getElementById('riskCategory').value;
+            const name = document.getElementById('riskName').value.trim();
+            const probability = parseInt(document.getElementById('probability').value);
+            const impact = parseInt(document.getElementById('impact').value);
+            const description = document.getElementById('riskDescription').value.trim();
+            const mitigation = document.getElementById('mitigationPlan').value.trim();
+            const responsible = document.getElementById('responsible').value.trim();
+
+            if (!name) {
+                showNotification('Por favor, ingresa un nombre para el riesgo', 'warning');
+                return;
+            }
+
+            const risk = {
+                id: Date.now(),
+                category,
+                name,
+                probability,
+                impact,
+                score: probability * impact,
+                level: calculateRiskLevel(probability, impact),
+                description: description || 'Sin descripción',
+                mitigation: mitigation || 'Sin plan definido',
+                responsible: responsible || 'No asignado'
+            };
+
+            risks.push(risk);
+            updateAll();
+            clearForm();
+            showNotification('Riesgo agregado correctamente', 'success');
+        }
+
+        function clearForm() {
+            document.getElementById('riskName').value = '';
+            document.getElementById('riskDescription').value = '';
+            document.getElementById('mitigationPlan').value = '';
+            document.getElementById('responsible').value = '';
+            document.getElementById('probability').value = 3;
+            document.getElementById('impact').value = 3;
+            document.getElementById('probValue').textContent = 3;
+            document.getElementById('impactValue').textContent = 3;
+        }
+
+        function deleteRisk(id) {
+            risks = risks.filter(r => r.id !== id);
+            updateAll();
+            showNotification('Riesgo eliminado', 'info');
+        }
+
+        function clearAllRisks() {
+            if (confirm('¿Estás seguro de eliminar todos los riesgos?')) {
+                risks = [];
+                updateAll();
+                showNotification('Todos los riesgos han sido eliminados', 'warning');
+            }
+        }
+
+        function loadSampleRisks() {
+            risks = [
+                {
+                    id: 1,
+                    category: 'Tecnológico',
+                    name: 'Ciberataque a sistemas críticos',
+                    probability: 4,
+                    impact: 5,
+                    score: 20,
+                    level: 'Crítico',
+                    description: 'Posible breach de seguridad en infraestructura TI',
+                    mitigation: 'Implementar firewall de última generación y auditorías semanales',
+                    responsible: 'CISO'
+                },
+                {
+                    id: 2,
+                    category: 'Financiero',
+                    name: 'Fluctuación cambiaria',
+                    probability: 5,
+                    impact: 4,
+                    score: 20,
+                    level: 'Crítico',
+                    description: 'Volatilidad en tipo de cambio afecta operaciones',
+                    mitigation: 'Hedging y contratos forward',
+                    responsible: 'CFO'
+                },
+                {
+                    id: 3,
+                    category: 'Operacional',
+                    name: 'Interrupción en cadena de suministro',
+                    probability: 3,
+                    impact: 4,
+                    score: 12,
+                    level: 'Alto',
+                    description: 'Problemas con proveedores clave',
+                    mitigation: 'Diversificar proveedores y stock de seguridad',
+                    responsible: 'COO'
+                },
+                {
+                    id: 4,
+                    category: 'Cumplimiento',
+                    name: 'Cambios en regulación fiscal',
+                    probability: 3,
+                    impact: 3,
+                    score: 9,
+                    level: 'Alto',
+                    description: 'Nuevas leyes fiscales podrían afectar',
+                    mitigation: 'Asesoría legal continua y actualización de procesos',
+                    responsible: 'Legal'
+                },
+                {
+                    id: 5,
+                    category: 'RRHH',
+                    name: 'Fuga de talento clave',
+                    probability: 3,
+                    impact: 2,
+                    score: 6,
+                    level: 'Medio',
+                    description: 'Rotación de personal estratégico',
+                    mitigation: 'Plan de retención y desarrollo de carrera',
+                    responsible: 'HR Director'
+                }
+            ];
+            
+            updateAll();
+            showNotification('Riesgos de ejemplo cargados', 'success');
+        }
+
+        function updateAll() {
+            updateHeatMap();
+            updateIndicators();
+            updateTable();
+            updateCharts();
+        }
+
+        function updateHeatMap() {
+            const matriz = document.getElementById('matriz-riesgos');
+            matriz.innerHTML = '';
+
+            // Crear filas de probabilidad (5 a 1)
+            for (let prob = 5; prob >= 1; prob--) {
+                const fila = document.createElement('div');
+                fila.className = 'matriz-fila';
+                
+                // Celda de probabilidad
+                fila.innerHTML += `<div class="celda-titulo">Prob ${prob}</div>`;
+                
+                // Celdas de impacto
+                for (let imp = 1; imp <= 5; imp++) {
+                    const riesgosEnCelda = risks.filter(r => r.probability === prob && r.impact === imp);
+                    const nivel = calculateRiskLevel(prob, imp).toLowerCase();
+                    
+                    fila.innerHTML += `
+                        <div class="celda-riesgo ${nivel}" onclick="showCellRisks(${prob}, ${imp})">
+                            <span class="numero-riesgos">${riesgosEnCelda.length}</span>
+                            <span class="texto-riesgos">riesgos</span>
+                        </div>
+                    `;
+                }
+                
+                matriz.appendChild(fila);
+            }
+        }
+
+        function showCellRisks(prob, imp) {
+            const riesgos = risks.filter(r => r.probability === prob && r.impact === imp);
+            
+            if (riesgos.length === 0) {
+                showNotification(`No hay riesgos con Probabilidad ${prob} e Impacto ${imp}`, 'info');
+                return;
+            }
+            
+            let mensaje = `Riesgos (P=${prob}, I=${imp}):\n\n`;
+            riesgos.forEach(r => {
+                mensaje += `• ${r.name} (${r.category}) - ${r.level}\n`;
+            });
+            
+            alert(mensaje);
+        }
+
+        function updateIndicators() {
+            const total = risks.length;
+            const criticos = risks.filter(r => r.level === 'Crítico').length;
+            const altos = risks.filter(r => r.level === 'Alto').length;
+            const scorePromedio = risks.length > 0 
+                ? (risks.reduce((acc, r) => acc + r.score, 0) / risks.length).toFixed(1)
+                : 0;
+
+            document.getElementById('indicators-container').innerHTML = `
+                <div class="indicator-card critico">
+                    <div class="indicator-label">Riesgos Críticos</div>
+                    <div class="indicator-valor">${criticos}</div>
+                    <div>Requieren acción inmediata</div>
+                </div>
+                <div class="indicator-card alto">
+                    <div class="indicator-label">Riesgos Altos</div>
+                    <div class="indicator-valor">${altos}</div>
+                    <div>Requieren monitoreo</div>
+                </div>
+                <div class="indicator-card medio">
+                    <div class="indicator-label">Total Riesgos</div>
+                    <div class="indicator-valor">${total}</div>
+                    <div>Registrados</div>
+                </div>
+                <div class="indicator-card bajo">
+                    <div class="indicator-label">Score Promedio</div>
+                    <div class="indicator-valor">${scorePromedio}</div>
+                    <div>Nivel general</div>
+                </div>
+            `;
+        }
+
+        function updateTable() {
+            const tbody = document.getElementById('risksTableBody');
+            tbody.innerHTML = '';
+
+            risks.forEach(risk => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td><span class="categoria-tag">${risk.category}</span></td>
+                        <td>${risk.name}</td>
+                        <td>${risk.probability}</td>
+                        <td>${risk.impact}</td>
+                        <td>${risk.score}</td>
+                        <td><span class="badge ${risk.level.toLowerCase()}">${risk.level}</span></td>
+                        <td>${risk.responsible}</td>
+                        <td>
+                            <button class="btn btn-danger btn-sm" onclick="deleteRisk(${risk.id})" style="padding: 5px 10px;">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function updateCharts() {
+            // Actualizar gráfico de categorías
+            const categorias = {};
+            risks.forEach(r => {
+                categorias[r.category] = (categorias[r.category] || 0) + 1;
+            });
+
+            charts.category.data.labels = Object.keys(categorias);
+            charts.category.data.datasets[0].data = Object.values(categorias);
+            charts.category.update();
+
+            // Actualizar gráfico de niveles
+            const niveles = {
+                'Crítico': risks.filter(r => r.level === 'Crítico').length,
+                'Alto': risks.filter(r => r.level === 'Alto').length,
+                'Medio': risks.filter(r => r.level === 'Medio').length,
+                'Bajo': risks.filter(r => r.level === 'Bajo').length
+            };
+
+            charts.level.data.datasets[0].data = [
+                niveles['Crítico'],
+                niveles['Alto'],
+                niveles['Medio'],
+                niveles['Bajo']
+            ];
+            charts.level.update();
+
+            // Actualizar gráfico de scores
+            charts.score.data.labels = risks.map((_, i) => `R${i + 1}`);
+            charts.score.data.datasets[0].data = risks.map(r => r.score);
+            charts.score.update();
+        }
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out forwards';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        function exportToPDF() {
+            document.getElementById('loading').classList.add('active');
+            
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('landscape', 'mm', 'a4');
+            
+            html2canvas(document.getElementById('dashboard-content'), {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                logging: false,
+                allowTaint: true,
+                useCORS: true
+            }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                const imgWidth = canvas.width;
+                const imgHeight = canvas.height;
+                const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+                const width = imgWidth * ratio;
+                const height = imgHeight * ratio;
+                
+                pdf.addImage(imgData, 'PNG', 0, 0, width, height);
+                pdf.save('matriz-riesgos.pdf');
+                
+                document.getElementById('loading').classList.remove('active');
+                showNotification('PDF exportado correctamente', 'success');
+            }).catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loading').classList.remove('active');
+                showNotification('Error al exportar PDF', 'error');
+            });
+        }
+    </script>
+</body>
+</html>

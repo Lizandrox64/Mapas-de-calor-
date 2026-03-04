@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Calor de Riesgos Empresariales 3D</title>
+    <!-- Estilos y librerías -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            padding: 20px;
+            perspective: 1000px;
+        }
+        
+        /* Tema Claro */
+        body.light-theme {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #1e293b;
+        }
+        
+        body.light-theme .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.3);
+        }
+        
+        body.light-theme .heatmap-container,
+        body.light-theme .controls-panel,
+        body.light-theme .chart-container,
+        body.light-theme .risks-table,
+        body.light-theme .footer {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.3);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+        }
+        
+        /* Tema Oscuro */
+        body.dark-theme {
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            color: #e2e8f0;
+        }
+        
+        body.dark-theme .container {
+            background: rgba(10, 10, 20, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+        }
+        
+        body.dark-theme .heatmap-container,
+        body.dark-theme .controls-panel,
+        body.dark-theme .chart-container,
+        body.dark-theme .risks-table,
+        body.dark-theme .footer {
+            background: rgba(20, 20, 35, 0.9);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+        }
+        
+        .theme-switcher {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            padding: 8px;
+            border-radius: 50px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .theme-btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: 40px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            background: transparent;
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .theme-btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            border-radius: 40px;
+            padding: 35px;
+            margin-top: 70px;
+            margin-bottom: 20px;
+            transform-style: preserve-3d;
+            animation: floatIn 1s ease-out;
+        }
+        
+        @keyframes floatIn {
+            from {
+                transform: translateY(50px) rotateX(-10deg);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0) rotateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .header {
+            padding: 40px;
+            border-radius: 30px;
+            margin-bottom: 35px;
+            position: relative;
+            overflow: hidden;
+            transform-style: preserve-3d;
+            transform: translateZ(20px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        
+        body.light-theme .header {
+            background: linear-gradient(135deg, #1e3c72, #2a5298, #3a6ab5);
+            color: white;
+        }
+        
+        body.dark-theme .header {
+            background: linear-gradient(135deg, #000428, #004e92);
+            color: white;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%);
+            animation: rotate 20s linear infinite;
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Efectos 3D para la matriz */
+        .matriz-3d-container {
+            perspective: 1000px;
+            transform-style: preserve-3d;
+            margin: 30px 0;
+        }
+        
+        .matriz-riesgos {
+            transform-style: preserve-3d;
+            transform: rotateX(5deg) rotateY(1deg);
+            transition: transform 0.5s ease;
+            margin-top: 20px;
+        }
+        
+        .matriz-riesgos:hover {
+            transform: rotateX(3deg) rotateY(2deg) translateZ(10px);
+        }
+        
+        .matriz-titulos {
+            display: grid;
+            grid-template-columns: 100px repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
+            transform-style: preserve-3d;
+        }
+        
+        .matriz-filas {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            transform-style: preserve-3d;
+        }
+        
+        .matriz-fila {
+            display: grid;
+            grid-template-columns: 100px repeat(5, 1fr);
+            gap: 10px;
+            transform-style: preserve-3d;
+        }
+        
+        .celda-titulo,
+        .celda-impacto {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            border-radius: 15px;
+            padding: 15px 5px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transform-style: preserve-3d;
+            transform: translateZ(15px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        
+        body.light-theme .celda-titulo {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        body.light-theme .celda-impacto {
+            background: linear-gradient(135deg, #2a5298, #3a6ab5);
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        body.dark-theme .celda-titulo {
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            color: #e2e8f0;
+            border: 1px solid #475569;
+        }
+        
+        body.dark-theme .celda-impacto {
+            background: linear-gradient(135deg, #1e293b, #2d3b4f);
+            color: #e2e8f0;
+            border: 1px solid #475569;
+        }
+        
+        .celda-riesgo {
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 15px;
+            color: white;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            padding: 15px;
+            text-align: center;
+            transform-style: preserve-3d;
+            transform: translateZ(10px) rotateX(2deg);
+            box-shadow: 0 15px 25px rgba(0,0,0,0.3),
+                        0 5px 10px rgba(0,0,0,0.2),
+                        inset 0 -3px 0 rgba(0,0,0,0.2),
+                        inset 0 3px 3px rgba(255,255,255,0.3);
+            position: relative;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .celda-riesgo::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 15px;
+            background: linear-gradient(135deg, rgba(255,255,255,0.2) 0%, transparent 50%);
+            pointer-events: none;
+        }
+        
+        .celda-riesgo::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 5px;
+            right: 5px;
+            height: 10px;
+            background: rgba(0,0,0,0.3);
+            filter: blur(5px);
+            border-radius: 50%;
+            z-index: -1;
+            transition: all 0.3s;
+        }
+        
+        .celda-riesgo:hover {
+            transform: translateZ(30px) rotateX(0deg) scale(1.1);
+            box-shadow: 0 25px 40px rgba(0,0,0,0.4),
+                        0 10px 15px rgba(0,0,0,0.3),
+                        inset 0 -3px 0 rgba(0,0,0,0.2),
+                        inset 0 3px 5px rgba(255,255,255,0.4);
+        }
+        
+        .celda-riesgo:hover::after {
+            bottom: -10px;
+            left: 10px;
+            right: 10px;
+            height: 15px;
+            filter: blur(8px);
+        }
+        
+        .celda-riesgo.critico { 
+            background: linear-gradient(145deg, #dc3545, #c82333, #b21f2d);
+        }
+        .celda-riesgo.alto { 
+            background: linear-gradient(145deg, #fd7e14, #f39c12, #e67e22);
+        }
+        .celda-riesgo.medio { 
+            background: linear-gradient(145deg, #ffc107, #e0a800, #d39e00);
+            color: #000;
+        }
+        .celda-riesgo.bajo { 
+            background: linear-gradient(145deg, #28a745, #218838, #1e7e34);
+        }
+        
+        .numero-riesgos {
+            font-size: 28px;
+            font-weight: 800;
+            line-height: 1;
+            text-shadow: 3px 3px 6px rgba(0,0,0,0.5);
+            transform: translateZ(5px);
+        }
+        
+        .texto-riesgos {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-top: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transform: translateZ(3px);
+        }
+        
+        .leyenda {
+            display: flex;
+            gap: 30px;
+            margin-top: 30px;
+            padding: 20px 25px;
+            border-radius: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            transform-style: preserve-3d;
+            transform: translateZ(5px);
+        }
+        
+        body.light-theme .leyenda {
+            background: rgba(255,255,255,0.5);
+            backdrop-filter: blur(5px);
+        }
+        
+        body.dark-theme .leyenda {
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(5px);
+        }
+        
+        .leyenda-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            transform: translateZ(3px);
+        }
+        
+        .leyenda-color {
+            width: 30px;
+            height: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 10px rgba(0,0,0,0.3);
+            transform: translateZ(5px);
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            gap: 25px;
+            margin-bottom: 25px;
+        }
+        
+        .heatmap-container,
+        .controls-panel,
+        .chart-container,
+        .risks-table,
+        .footer {
+            border-radius: 25px;
+            padding: 25px;
+            backdrop-filter: blur(5px);
+        }
+        
+        .btn {
+            padding: 14px 24px;
+            border: none;
+            border-radius: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            margin-right: 12px;
+            margin-bottom: 12px;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transform-style: preserve-3d;
+            transform: translateZ(5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2),
+                        0 5px 10px rgba(0,0,0,0.1),
+                        inset 0 -2px 0 rgba(0,0,0,0.2),
+                        inset 0 2px 2px rgba(255,255,255,0.3);
+        }
+        
+        .btn:hover {
+            transform: translateZ(15px) translateY(-5px) scale(1.05);
+            box-shadow: 0 20px 30px rgba(0,0,0,0.3),
+                        0 10px 15px rgba(0,0,0,0.2),
+                        inset 0 -2px 0 rgba(0,0,0,0.2),
+                        inset 0 2px 3px rgba(255,255,255,0.4);
+        }
+        
+        .btn:active {
+            transform: translateZ(5px) translateY(2px);
+            box-shadow: 0 5px 10px rgba(0,0,0,0.2);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(145deg, #1e3c72, #2a5298);
+            color: white;
+        }
+        
+        .indicators-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .indicator-card {
+            padding: 25px;
+            border-radius: 25px;
+            text-align: center;
+            border-left: 6px solid;
+            transition: all 0.3s;
+            transform-style: preserve-3d;
+            transform: translateZ(10px);
+            backdrop-filter: blur(5px);
+        }
+        
+        body.light-theme .indicator-card {
+            background: rgba(255,255,255,0.8);
+        }
+        
+        body.dark-theme .indicator-card {
+            background: rgba(0,0,0,0.4);
+        }
+        
+        .indicator-card:hover {
+            transform: translateZ(20px) translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        
+        .indicator-valor {
+            font-size: 42px;
+            font-weight: 800;
+            margin: 15px 0;
+            line-height: 1;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .charts-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-wrapper {
+            height: 280px;
+            position: relative;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            padding: 35px !important;
+            border-radius: 25px;
+            transform-style: preserve-3d;
+            transform: translateZ(5px);
+        }
+        
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .footer-title {
+            font-size: 22px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+            transform: translateZ(3px);
+        }
+        
+        .footer-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 15px;
+            transform: translateZ(2px);
+        }
+        
+        .footer-social {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .social-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            transition: all 0.3s;
+            text-decoration: none;
+            transform-style: preserve-3d;
+            transform: translateZ(5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        body.light-theme .social-icon {
+            background: rgba(255,255,255,0.9);
+            color: #1e3c72;
+        }
+        
+        body.dark-theme .social-icon {
+            background: rgba(0,0,0,0.5);
+            color: #60a5fa;
+        }
+        
+        .social-icon:hover {
+            transform: translateZ(15px) translateY(-5px) scale(1.1);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+        }
+        
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9998;
+            backdrop-filter: blur(10px);
+        }
+        
+        .loading.active {
+            display: flex;
+        }
+        
+        .spinner {
+            width: 70px;
+            height: 70px;
+            border: 8px solid rgba(255,255,255,0.2);
+            border-top: 8px solid #2a5298;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            box-shadow: 0 0 30px rgba(42, 82, 152, 0.5);
+        }
+        
+        @media (max-width: 1200px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            
+            .charts-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .indicators-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .matriz-riesgos {
+                transform: rotateX(2deg) rotateY(0.5deg);
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .indicators-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .matriz-titulos {
+                grid-template-columns: 60px repeat(5, 1fr);
+            }
+            
+            .matriz-fila {
+                grid-template-columns: 60px repeat(5, 1fr);
+            }
+            
+            .celda-titulo,
+            .celda-impacto {
+                padding: 10px 2px;
+                font-size: 11px;
+            }
+            
+            .numero-riesgos {
+                font-size: 18px;
+            }
+            
+            .texto-riesgos {
+                font-size: 8px;
+            }
+        }
+    </style>
+</head>
+<body class="light-theme">
+    <div class="theme-switcher">
+        <button class="theme-btn light active" onclick="setTheme('light')">
+            <i class="fas fa-sun"></i> Claro
+        </button>
+        <button class="theme-btn dark" onclick="setTheme('dark')">
+            <i class="fas fa-moon"></i> Oscuro
+        </button>
+    </div>
+    
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+    </div>
+    
+    <div class="container" id="dashboard-content">
+        <div class="header">
+            <h1><i class="fas fa-cube"></i> Mapa de Calor de Riesgos 3D</h1>
+            <p>Visualiza, evalúa y gestiona los riesgos de tu empresa con una matriz 3D interactiva</p>
+        </div>
+        
+        <div class="indicators-row" id="indicators-container"></div>
+        
+        <div class="dashboard">
+            <div class="heatmap-container">
+                <h3><i class="fas fa-cubes"></i> Matriz de Riesgos 3D (Probabilidad vs Impacto)</h3>
+                
+                <div class="matriz-3d-container">
+                    <div class="matriz-riesgos">
+                        <div class="matriz-titulos">
+                            <div class="celda-titulo"></div>
+                            <div class="celda-impacto">Impacto 1</div>
+                            <div class="celda-impacto">Impacto 2</div>
+                            <div class="celda-impacto">Impacto 3</div>
+                            <div class="celda-impacto">Impacto 4</div>
+                            <div class="celda-impacto">Impacto 5</div>
+                        </div>
+                        
+                        <div class="matriz-filas" id="matriz-riesgos"></div>
+                    </div>
+                </div>
+                
+                <div class="leyenda">
+                    <div class="leyenda-item">
+                        <div class="leyenda-color" style="background: linear-gradient(145deg, #dc3545, #c82333);"></div>
+                        <span>Crítico (15-25)</span>
+                    </div>
+                    <div class="leyenda-item">
+                        <div class="leyenda-color" style="background: linear-gradient(145deg, #fd7e14, #f39c12);"></div>
+                        <span>Alto (8-12)</span>
+                    </div>
+                    <div class="leyenda-item">
+                        <div class="leyenda-color" style="background: linear-gradient(145deg, #ffc107, #e0a800);"></div>
+                        <span>Medio (3-6)</span>
+                    </div>
+                    <div class="leyenda-item">
+                        <div class="leyenda-color" style="background: linear-gradient(145deg, #28a745, #218838);"></div>
+                        <span>Bajo (1-2)</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="controls-panel">
+                <h3><i class="fas fa-cog"></i> Gestión de Riesgos</h3>
+                
+                <div class="form-group">
+                    <label><i class="fas fa-tag"></i> Categoría</label>
+                    <select class="form-select" id="riskCategory">
+                        <option value="Estratégico">📊 Estratégico</option>
+                        <option value="Operacional">⚙️ Operacional</option>
+                        <option value="Financiero">💰 Financiero</option>
+                        <option value="Cumplimiento">⚖️ Cumplimiento</option>
+                        <option value="Tecnológico">💻 Tecnológico</option>
+                        <option value="Reputacional">📢 Reputacional</option>
+                        <option value="RRHH">👥 RR.HH.</option>
+                        <option value="Mercado">📈 Mercado</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label><i class="fas fa-font"></i> Nombre del Riesgo</label>
+                    <input type="text" class="form-control" id="riskName" placeholder="Ej: Ciberataque, Crisis de liquidez...">
+                </div>
+                
+                <div class="form-group">
+                    <label><i class="fas fa-chart-line"></i> Probabilidad (1-5)</label>
+                    <input type="range" class="slider" id="probability" min="1" max="5" step="1" value="3">
+                    <div class="slider-valor">
+                        <span>Muy Baja</span>
+                        <span id="probValue">3</span>
+                        <span>Muy Alta</span>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label><i class="fas fa-bomb"></i> Impacto (1-5)</label>
+                    <input type="range" class="slider" id="impact" min="1" max="5" step="1" value="3">
+                    <div class="slider-valor">
+                        <span>Insignificante</span>
+                        <span id="impactValue">3</span>
+                        <span>Catastrófico</span>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label><i class="fas fa-align-left"></i> Descripción</label>
+                    <textarea class="form-control" id="riskDescription" rows="2" placeholder="Describe el riesgo..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label><i class="fas fa-shield-alt"></i> Plan de Mitigación</label>
+                    <textarea class="form-control" id="mitigationPlan" rows="2" placeholder="Acciones para mitigar..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label><i class="fas fa-user"></i> Responsable</label>
+                    <input type="text" class="form-control" id="responsible" placeholder="Área o persona responsable">
+                </div>
+                
+                <div>
+                    <button class="btn btn-primary" onclick="addRisk()">
+                        <i class="fas fa-plus"></i> Agregar
+                    </button>
+                    <button class="btn btn-success" onclick="loadSampleRisks()">
+                        <i class="fas fa-dice"></i> Ejemplos
+                    </button>
+                    <button class="btn btn-danger" onclick="clearAllRisks()">
+                        <i class="fas fa-trash"></i> Limpiar
+                    </button>
+                </div>
+                
+                <button class="btn btn-export" onclick="exportToPDF()">
+                    <i class="fas fa-file-pdf"></i> Exportar a PDF
+                </button>
+            </div>
+        </div>
+        
+        <div class="charts-row">
+            <div class="chart-container">
+                <h4><i class="fas fa-chart-pie"></i> Distribución por Categoría</h4>
+                <div class="chart-wrapper">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h4><i class="fas fa-chart-bar"></i> Nivel de Riesgo</h4>
+                <div class="chart-wrapper">
+                    <canvas id="levelChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h4><i class="fas fa-chart-line"></i> Score de Riesgos</h4>
+                <div class="chart-wrapper">
+                    <canvas id="scoreChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="risks-table">
+            <h3><i class="fas fa-list"></i> Registro de Riesgos</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Categoría</th>
+                        <th>Riesgo</th>
+                        <th>Prob</th>
+                        <th>Imp</th>
+                        <th>Score</th>
+                        <th>Nivel</th>
+                        <th>Responsable</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="risksTableBody"></tbody>
+            </table>
+        </div>
+        
+        <div class="footer">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <div class="footer-title">
+                        <i class="fas fa-code"></i> By Lizandro Correa
+                    </div>
+                    <div class="footer-item">
+                        <i class="fas fa-briefcase"></i>
+                        <span>Consultor en Gestión de Riesgos Empresariales</span>
+                    </div>
+                    <div class="footer-item">
+                        <i class="fas fa-envelope"></i>
+                        <a href="mailto:lizandro.correa@blackslash.cl">lizandro.correa@blackslash.cl</a>
+                    </div>
+                    <div class="footer-item">
+                        <i class="fas fa-phone"></i>
+                        <span>+56 99547711</span>
+                    </div>
+                    <div class="footer-item">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>Santiago de Chile</span>
+                    </div>
+                </div>
+                
+                  
+                <div class="footer-social">
+                    <a href="https://www.linkedin.com/in/lizandrocorrea/" class="social-icon" title="LinkedIn">
+                        <i class="fab fa-linkedin-in"></i>
+                    </a>
+                    <a href="https://github.com/Lizandrox64" class="social-icon" title="GitHub">
+                        <i class="fab fa-github"></i>
+                    </a>
+                 
+                    <a href="www.blackslash.cl" class="social-icon" title="Portafolio">
+                        <i class="fas fa-globe"></i>
+                    </a>
+                </div>
+            </div>
+            
+            
+            <div class="footer-copyright">
+                <i class="far fa-copyright"></i> 2026 Lizandro Correa - Todos los derechos reservados. 
+                Versión 3.0 - Mapa de Calor de Riesgos 3D
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let risks = [];
+        let charts = {};
+
+        function setTheme(theme) {
+            const body = document.body;
+            const lightBtn = document.querySelector('.theme-btn.light');
+            const darkBtn = document.querySelector('.theme-btn.dark');
+            
+            if (theme === 'light') {
+                body.classList.remove('dark-theme');
+                body.classList.add('light-theme');
+                lightBtn.classList.add('active');
+                darkBtn.classList.remove('active');
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.classList.remove('light-theme');
+                body.classList.add('dark-theme');
+                darkBtn.classList.add('active');
+                lightBtn.classList.remove('active');
+                localStorage.setItem('theme', 'dark');
+            }
+            
+            updateCharts();
+        }
+
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            setTheme(savedTheme);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            window.scrollTo(0, 0);
+            loadTheme();
+            initializeCharts();
+            loadSampleRisks();
+        });
+
+        document.getElementById('probability').addEventListener('input', function(e) {
+            document.getElementById('probValue').textContent = e.target.value;
+        });
+
+        document.getElementById('impact').addEventListener('input', function(e) {
+            document.getElementById('impactValue').textContent = e.target.value;
+        });
+
+        function initializeCharts() {
+            const ctxCategory = document.getElementById('categoryChart').getContext('2d');
+            charts.category = new Chart(ctxCategory, {
+                type: 'pie',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: ['#1e3c72', '#2a5298', '#4a6fa5', '#6b8cae', '#9bb7d4', '#b8d4e7', '#cfe3f9', '#e3f0ff']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } }
+                }
+            });
+
+            const ctxLevel = document.getElementById('levelChart').getContext('2d');
+            charts.level = new Chart(ctxLevel, {
+                type: 'bar',
+                data: {
+                    labels: ['Crítico', 'Alto', 'Medio', 'Bajo'],
+                    datasets: [{
+                        label: 'Cantidad de Riesgos',
+                        data: [0, 0, 0, 0],
+                        backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#28a745'],
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, stepSize: 1 } }
+                }
+            });
+
+            const ctxScore = document.getElementById('scoreChart').getContext('2d');
+            charts.score = new Chart(ctxScore, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Score de Riesgo',
+                        data: [],
+                        borderColor: '#1e3c72',
+                        backgroundColor: 'rgba(30, 60, 114, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#1e3c72',
+                        pointBorderColor: 'white',
+                        pointBorderWidth: 2,
+                        pointRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, max: 25 } }
+                }
+            });
+        }
+
+        function calculateRiskLevel(probability, impact) {
+            const score = probability * impact;
+            if (score >= 15) return 'Crítico';
+            if (score >= 8) return 'Alto';
+            if (score >= 3) return 'Medio';
+            return 'Bajo';
+        }
+
+        function getRiskClass(probability, impact) {
+            return calculateRiskLevel(probability, impact).toLowerCase();
+        }
+
+        function addRisk() {
+            const category = document.getElementById('riskCategory').value;
+            const name = document.getElementById('riskName').value.trim();
+            const probability = parseInt(document.getElementById('probability').value);
+            const impact = parseInt(document.getElementById('impact').value);
+            const description = document.getElementById('riskDescription').value.trim();
+            const mitigation = document.getElementById('mitigationPlan').value.trim();
+            const responsible = document.getElementById('responsible').value.trim();
+
+            if (!name) {
+                showNotification('Por favor, ingresa un nombre para el riesgo', 'warning');
+                return;
+            }
+
+            const risk = {
+                id: Date.now(),
+                category,
+                name,
+                probability,
+                impact,
+                score: probability * impact,
+                level: calculateRiskLevel(probability, impact),
+                description: description || 'Sin descripción',
+                mitigation: mitigation || 'Sin plan definido',
+                responsible: responsible || 'No asignado'
+            };
+
+            risks.push(risk);
+            updateAll();
+            clearForm();
+            showNotification('Riesgo agregado correctamente', 'success');
+        }
+
+        function clearForm() {
+            document.getElementById('riskName').value = '';
+            document.getElementById('riskDescription').value = '';
+            document.getElementById('mitigationPlan').value = '';
+            document.getElementById('responsible').value = '';
+            document.getElementById('probability').value = 3;
+            document.getElementById('impact').value = 3;
+            document.getElementById('probValue').textContent = 3;
+            document.getElementById('impactValue').textContent = 3;
+        }
+
+        function deleteRisk(id) {
+            risks = risks.filter(r => r.id !== id);
+            updateAll();
+            showNotification('Riesgo eliminado', 'info');
+        }
+
+        function clearAllRisks() {
+            if (confirm('¿Estás seguro de eliminar todos los riesgos?')) {
+                risks = [];
+                updateAll();
+                showNotification('Todos los riesgos han sido eliminados', 'warning');
+            }
+        }
+
+        function loadSampleRisks() {
+            risks = [
+                { id: 1, category: 'Tecnológico', name: 'Ciberataque a sistemas críticos', probability: 4, impact: 5, score: 20, level: 'Crítico', description: 'Posible breach de seguridad en infraestructura TI', mitigation: 'Implementar firewall de última generación', responsible: 'CISO' },
+                { id: 2, category: 'Financiero', name: 'Fluctuación cambiaria', probability: 5, impact: 4, score: 20, level: 'Crítico', description: 'Volatilidad en tipo de cambio', mitigation: 'Hedging y contratos forward', responsible: 'CFO' },
+                { id: 3, category: 'Operacional', name: 'Interrupción en cadena de suministro', probability: 3, impact: 4, score: 12, level: 'Alto', description: 'Problemas con proveedores clave', mitigation: 'Diversificar proveedores', responsible: 'COO' },
+                { id: 4, category: 'Cumplimiento', name: 'Cambios en regulación fiscal', probability: 3, impact: 3, score: 9, level: 'Alto', description: 'Nuevas leyes fiscales', mitigation: 'Asesoría legal continua', responsible: 'Legal' },
+                { id: 5, category: 'RRHH', name: 'Fuga de talento clave', probability: 3, impact: 2, score: 6, level: 'Medio', description: 'Rotación de personal estratégico', mitigation: 'Plan de retención', responsible: 'HR Director' }
+            ];
+            
+            updateAll();
+            showNotification('Riesgos de ejemplo cargados', 'success');
+        }
+
+        function updateAll() {
+            updateHeatMap();
+            updateIndicators();
+            updateTable();
+            updateCharts();
+        }
+
+        function updateHeatMap() {
+            const matriz = document.getElementById('matriz-riesgos');
+            matriz.innerHTML = '';
+
+            for (let prob = 5; prob >= 1; prob--) {
+                const fila = document.createElement('div');
+                fila.className = 'matriz-fila';
+                
+                fila.innerHTML += `<div class="celda-titulo">Prob ${prob}</div>`;
+                
+                for (let imp = 1; imp <= 5; imp++) {
+                    const riesgosEnCelda = risks.filter(r => r.probability === prob && r.impact === imp);
+                    const nivel = getRiskClass(prob, imp);
+                    
+                    fila.innerHTML += `
+                        <div class="celda-riesgo ${nivel}" onclick="showCellRisks(${prob}, ${imp})">
+                            <span class="numero-riesgos">${riesgosEnCelda.length}</span>
+                            <span class="texto-riesgos">riesgos</span>
+                        </div>
+                    `;
+                }
+                
+                matriz.appendChild(fila);
+            }
+        }
+
+        function showCellRisks(prob, imp) {
+            const riesgos = risks.filter(r => r.probability === prob && r.impact === imp);
+            
+            if (riesgos.length === 0) {
+                showNotification(`No hay riesgos con Probabilidad ${prob} e Impacto ${imp}`, 'info');
+                return;
+            }
+            
+            let mensaje = `Riesgos (P=${prob}, I=${imp}):\n\n`;
+            riesgos.forEach(r => mensaje += `• ${r.name} (${r.category}) - ${r.level}\n`);
+            alert(mensaje);
+        }
+
+        function updateIndicators() {
+            const total = risks.length;
+            const criticos = risks.filter(r => r.level === 'Crítico').length;
+            const altos = risks.filter(r => r.level === 'Alto').length;
+            const scorePromedio = risks.length > 0 ? (risks.reduce((acc, r) => acc + r.score, 0) / risks.length).toFixed(1) : 0;
+
+            document.getElementById('indicators-container').innerHTML = `
+                <div class="indicator-card critico">
+                    <i class="fas fa-exclamation-triangle fa-2x"></i>
+                    <div class="indicator-label">Críticos</div>
+                    <div class="indicator-valor">${criticos}</div>
+                </div>
+                <div class="indicator-card alto">
+                    <i class="fas fa-exclamation-circle fa-2x"></i>
+                    <div class="indicator-label">Altos</div>
+                    <div class="indicator-valor">${altos}</div>
+                </div>
+                <div class="indicator-card medio">
+                    <i class="fas fa-list fa-2x"></i>
+                    <div class="indicator-label">Total</div>
+                    <div class="indicator-valor">${total}</div>
+                </div>
+                <div class="indicator-card bajo">
+                    <i class="fas fa-chart-line fa-2x"></i>
+                    <div class="indicator-label">Score Prom</div>
+                    <div class="indicator-valor">${scorePromedio}</div>
+                </div>
+            `;
+        }
+
+        function updateTable() {
+            const tbody = document.getElementById('risksTableBody');
+            tbody.innerHTML = '';
+
+            risks.forEach(risk => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td><span class="categoria-tag">${risk.category}</span></td>
+                        <td>${risk.name}</td>
+                        <td>${risk.probability}</td>
+                        <td>${risk.impact}</td>
+                        <td><strong>${risk.score}</strong></td>
+                        <td><span class="badge ${risk.level.toLowerCase()}">${risk.level}</span></td>
+                        <td><i class="fas fa-user"></i> ${risk.responsible}</td>
+                        <td>
+                            <button class="btn btn-danger btn-sm" onclick="deleteRisk(${risk.id})" style="padding: 5px 12px;">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function updateCharts() {
+            const categorias = {};
+            risks.forEach(r => categorias[r.category] = (categorias[r.category] || 0) + 1);
+            charts.category.data.labels = Object.keys(categorias);
+            charts.category.data.datasets[0].data = Object.values(categorias);
+            charts.category.update();
+
+            const niveles = {
+                'Crítico': risks.filter(r => r.level === 'Crítico').length,
+                'Alto': risks.filter(r => r.level === 'Alto').length,
+                'Medio': risks.filter(r => r.level === 'Medio').length,
+                'Bajo': risks.filter(r => r.level === 'Bajo').length
+            };
+            charts.level.data.datasets[0].data = [niveles['Crítico'], niveles['Alto'], niveles['Medio'], niveles['Bajo']];
+            charts.level.update();
+
+            charts.score.data.labels = risks.map((_, i) => `R${i + 1}`);
+            charts.score.data.datasets[0].data = risks.map(r => r.score);
+            charts.score.update();
+        }
+
+        function showNotification(message, type) {
+            const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `<i class="fas ${icons[type]}"></i> ${message}`;
+            document.body.appendChild(notification);
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out forwards';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        function exportToPDF() {
+            document.getElementById('loading').classList.add('active');
+            
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF('landscape', 'mm', 'a4');
+            
+            html2canvas(document.getElementById('dashboard-content'), {
+                scale: 2,
+                backgroundColor: document.body.classList.contains('dark-theme') ? '#1a2332' : '#ffffff',
+                logging: false,
+                allowTaint: true,
+                useCORS: true
+            }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                const imgWidth = canvas.width;
+                const imgHeight = canvas.height;
+                const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+                const width = imgWidth * ratio;
+                const height = imgHeight * ratio;
+                
+                pdf.addImage(imgData, 'PNG', 0, 0, width, height);
+                pdf.save('matriz-riesgos-3d.pdf');
+                
+                document.getElementById('loading').classList.remove('active');
+                showNotification('PDF exportado correctamente', 'success');
+            }).catch(error => {
+                console.error('Error:', error);
+                document.getElementById('loading').classList.remove('active');
+                showNotification('Error al exportar PDF', 'error');
+            });
+        }
+    </script>
+</body>
+</html>

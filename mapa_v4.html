@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa de Calor — Risk Editor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+[data-theme="dark"] {
+  --bg:#080b12; --bg2:#0e1320; --surface:#111827; --surface2:#1a2236;
+  --border:#1e2d45; --border2:#253350; --text:#e2e8f5; --text2:#8899bb; --text3:#3a4d6a;
+  --accent:#38bdf8; --accent-glow:rgba(56,189,248,0.12); --gold:#fbbf24;
+  --lvl1-bg:#07192b; --lvl1-fg:#38bdf8;
+  --lvl2-bg:#062516; --lvl2-fg:#34d399;
+  --lvl3-bg:#182800; --lvl3-fg:#a3e635;
+  --lvl4-bg:#2a1500; --lvl4-fg:#fb923c;
+  --lvl5-bg:#250808; --lvl5-fg:#f87171;
+  --shadow:rgba(0,0,0,0.55);
+  --toggle-knob:#38bdf8; --toggle-bg:#1a2236;
+}
+[data-theme="light"] {
+  --bg:#f0f4fb; --bg2:#e4ecf8; --surface:#ffffff; --surface2:#f7faff;
+  --border:#c8d8ef; --border2:#b0c6e8; --text:#0f1d35; --text2:#4a6080; --text3:#9ab0cc;
+  --accent:#0369a1; --accent-glow:rgba(3,105,161,0.08); --gold:#d97706;
+  --lvl1-bg:#dbeafe; --lvl1-fg:#1d4ed8;
+  --lvl2-bg:#d1fae5; --lvl2-fg:#065f46;
+  --lvl3-bg:#ecfccb; --lvl3-fg:#3f6212;
+  --lvl4-bg:#ffedd5; --lvl4-fg:#9a3412;
+  --lvl5-bg:#fee2e2; --lvl5-fg:#991b1b;
+  --shadow:rgba(0,40,100,0.1);
+  --toggle-knob:#0369a1; --toggle-bg:#c8d8ef;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;min-height:100vh;transition:background .3s,color .3s;}
+
+/* TOPBAR */
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 16px var(--shadow);}
+.logo{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:700;color:var(--accent);letter-spacing:-0.5px;}
+.logo span{color:var(--text3);}
+.vdiv{width:1px;height:22px;background:var(--border);}
+.map-title-inp{background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text2);font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:500;outline:none;min-width:240px;padding:2px 4px;transition:border-color .2s,color .2s;}
+.map-title-inp:focus{border-bottom-color:var(--accent);color:var(--text);}
+.topbar-right{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+.theme-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3);}
+.theme-toggle{position:relative;width:50px;height:24px;background:var(--toggle-bg);border-radius:12px;cursor:pointer;border:1px solid var(--border2);flex-shrink:0;transition:background .3s;}
+.theme-toggle::after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;background:var(--toggle-knob);border-radius:50%;transition:transform .3s cubic-bezier(.34,1.56,.64,1);}
+[data-theme="light"] .theme-toggle::after{transform:translateX(26px);}
+.btn{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;padding:8px 14px;border:none;cursor:pointer;letter-spacing:.6px;text-transform:uppercase;transition:all .15s;}
+.btn-ol{background:transparent;border:1px solid var(--border2);color:var(--text2);}
+.btn-ol:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow);}
+.btn-ac{background:var(--accent);color:#fff;}
+.btn-ac:hover{opacity:.88;}
+
+/* LAYOUT */
+.app-body{display:grid;grid-template-columns:1fr 370px;min-height:calc(100vh - 56px);}
+.left{padding:20px 24px;display:flex;flex-direction:column;gap:18px;border-right:1px solid var(--border);overflow:auto;}
+.right{background:var(--surface2);display:flex;flex-direction:column;overflow:hidden;}
+
+/* CONFIG */
+.cfg-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--surface);padding:11px 14px;border:1px solid var(--border);}
+.cg{display:flex;align-items:center;gap:6px;}
+.cl{font-family:'IBM Plex Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);}
+.ci{background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 8px;outline:none;transition:border-color .2s;width:54px;}
+.ci.w{width:80px;}
+.ci:focus{border-color:var(--accent);}
+.cdiv{width:1px;height:18px;background:var(--border);}
+
+/* SECTION HEAD */
+.sh{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2px;color:var(--text3);display:flex;align-items:center;gap:8px;}
+.sh::before{content:'';width:3px;height:10px;background:var(--accent);}
+
+/* HEATMAP */
+.hm-wrap{overflow:auto;}
+.hm{border-collapse:collapse;width:100%;}
+.hm th{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:9px 10px;background:var(--bg2);border:1px solid var(--border);color:var(--text2);white-space:nowrap;min-width:82px;}
+.hm th.rh{min-width:130px;text-align:left;}
+.th-i,.rh-i{background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;text-align:center;width:100%;outline:none;cursor:text;transition:color .2s,border-color .2s;}
+.th-i:focus,.rh-i:focus{color:var(--accent);border-bottom-color:var(--accent);}
+.rh-i{text-align:left;}
+.hc{border:1px solid rgba(128,128,180,.07);padding:0;cursor:pointer;transition:transform .12s,box-shadow .12s;position:relative;}
+.hc:hover{transform:scale(1.05);z-index:10;box-shadow:0 4px 16px var(--shadow);}
+.hc.rhl{outline:2px solid var(--gold);z-index:4;}
+.hc.sel{outline:2px solid var(--accent);z-index:5;box-shadow:0 0 0 4px var(--accent-glow);}
+.ci2{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:64px;min-width:82px;padding:9px 5px;}
+.cv{font-family:'IBM Plex Mono',monospace;font-size:21px;font-weight:700;line-height:1;}
+.cu{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:.5px;margin-top:2px;opacity:.45;text-transform:uppercase;}
+.lvl-1 .ci2{background:var(--lvl1-bg);} .lvl-1 .cv{color:var(--lvl1-fg);}
+.lvl-2 .ci2{background:var(--lvl2-bg);} .lvl-2 .cv{color:var(--lvl2-fg);}
+.lvl-3 .ci2{background:var(--lvl3-bg);} .lvl-3 .cv{color:var(--lvl3-fg);}
+.lvl-4 .ci2{background:var(--lvl4-bg);} .lvl-4 .cv{color:var(--lvl4-fg);}
+.lvl-5 .ci2{background:var(--lvl5-bg);} .lvl-5 .cv{color:var(--lvl5-fg);}
+.ced{position:absolute;inset:0;z-index:20;background:var(--accent-glow);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;}
+.ced input{background:transparent;border:none;color:var(--accent);font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:700;text-align:center;width:80%;outline:none;}
+@keyframes pulse{0%{transform:scale(1.1)}100%{transform:scale(1)}}
+.cp{animation:pulse .2s ease-out;}
+
+/* BOTTOM CHARTS */
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.card{background:var(--surface);border:1px solid var(--border);padding:14px;}
+.ct{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:10px;}
+.bar-chart{display:flex;flex-direction:column;gap:5px;}
+.br{display:flex;align-items:center;gap:7px;}
+.bl{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text2);width:68px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.bt{flex:1;height:15px;background:var(--bg2);border:1px solid var(--border);position:relative;overflow:hidden;}
+.bf{height:100%;transition:width .5s cubic-bezier(.4,0,.2,1);}
+.bv{position:absolute;right:4px;top:50%;transform:translateY(-50%);font-family:'IBM Plex Mono',monospace;font-size:8px;color:rgba(255,255,255,.65);}
+[data-theme="light"] .bv{color:rgba(0,0,0,.5);}
+.dist-bars{display:flex;align-items:flex-end;gap:3px;height:50px;}
+.db{flex:1;border-radius:2px 2px 0 0;transition:height .4s;min-height:2px;position:relative;}
+.db:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100%+3px);left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);padding:2px 6px;font-family:'IBM Plex Mono',monospace;font-size:8px;color:var(--text);white-space:nowrap;z-index:50;}
+.dist-lbls{display:flex;gap:3px;margin-top:4px;}
+.dl{flex:1;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:7px;color:var(--text3);}
+
+/* RIGHT PANEL */
+.rtabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface);}
+.rtab{flex:1;font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:12px 6px;text-align:center;cursor:pointer;color:var(--text3);border:none;border-bottom:2px solid transparent;background:transparent;transition:all .2s;}
+.rtab:hover{color:var(--text2);}
+.rtab.on{color:var(--accent);border-bottom-color:var(--accent);}
+.rc{flex:1;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:14px;}
+.tp{display:none;flex-direction:column;gap:12px;}
+.tp.on{display:flex;}
+
+/* STATS */
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.sb{background:var(--bg2);border:1px solid var(--border);padding:11px;}
+.sv{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:700;}
+.sl{font-family:'IBM Plex Mono',monospace;font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-top:2px;}
+
+/* LEGEND */
+.legend{display:flex;flex-direction:column;gap:6px;}
+.lr{display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:10px;}
+.lsw{width:22px;height:13px;border-radius:1px;flex-shrink:0;}
+.ln{font-weight:600;min-width:66px;}
+.lrng{color:var(--text3);font-size:9px;}
+.lc{margin-left:auto;background:var(--bg2);border:1px solid var(--border);color:var(--text2);font-size:9px;padding:1px 6px;border-radius:10px;}
+
+/* RISK LIST */
+.risk-tb{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.rsch{flex:1;min-width:110px;background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:12px;padding:7px 10px;outline:none;transition:border-color .2s;}
+.rsch:focus{border-color:var(--accent);}
+.rfil{background:var(--bg2);border:1px solid var(--border);color:var(--text2);font-family:'IBM Plex Mono',monospace;font-size:9px;padding:7px 8px;outline:none;cursor:pointer;}
+.rfil:focus{border-color:var(--accent);}
+.rlist{display:flex;flex-direction:column;gap:8px;}
+
+.rcard{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--border2);padding:12px 13px;cursor:pointer;transition:transform .1s,box-shadow .15s;position:relative;}
+.rcard:hover{transform:translateX(2px);box-shadow:2px 0 10px var(--shadow);}
+.rcard.act{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);}
+.rcard-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.rni{background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text);font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;outline:none;flex:1;transition:border-color .2s;}
+.rni:focus{border-bottom-color:var(--accent);}
+.rbadge{font-family:'IBM Plex Mono',monospace;font-size:8px;font-weight:700;padding:3px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0;}
+.b1{background:var(--lvl1-bg);color:var(--lvl1-fg);border:1px solid var(--lvl1-fg);}
+.b2{background:var(--lvl2-bg);color:var(--lvl2-fg);border:1px solid var(--lvl2-fg);}
+.b3{background:var(--lvl3-bg);color:var(--lvl3-fg);border:1px solid var(--lvl3-fg);}
+.b4{background:var(--lvl4-bg);color:var(--lvl4-fg);border:1px solid var(--lvl4-fg);}
+.b5{background:var(--lvl5-bg);color:var(--lvl5-fg);border:1px solid var(--lvl5-fg);}
+.rmeta{display:flex;gap:7px;flex-wrap:wrap;align-items:center;}
+.rmi{display:flex;align-items:center;gap:4px;}
+.rml{font-family:'IBM Plex Mono',monospace;font-size:8px;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);}
+.rms,.rmn{background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:10px;padding:3px 6px;outline:none;cursor:pointer;transition:border-color .2s;}
+.rms:focus,.rmn:focus{border-color:var(--accent);}
+.rmn{width:48px;}
+.rsb{width:100%;height:4px;background:var(--bg2);border-radius:2px;margin-top:7px;overflow:hidden;}
+.rsf{height:100%;border-radius:2px;transition:width .4s,background .4s;}
+.rdi{width:100%;background:transparent;border:none;border-top:1px solid var(--border);color:var(--text2);font-family:'IBM Plex Sans',sans-serif;font-size:11px;padding:7px 0 0;margin-top:8px;outline:none;resize:none;height:42px;transition:color .2s;}
+.rdi:focus{color:var(--text);}
+.rfoot{display:flex;justify-content:flex-end;margin-top:7px;}
+.rdel{background:transparent;border:none;color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:9px;cursor:pointer;padding:2px 5px;transition:color .2s;}
+.rdel:hover{color:#f87171;}
+.add-risk{display:flex;align-items:center;justify-content:center;gap:6px;padding:12px;background:transparent;border:1px dashed var(--border2);color:var(--text3);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .2s;margin-top:4px;}
+.add-risk:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-glow);}
+
+/* LEVEL SUMMARY */
+.lsum{display:flex;flex-direction:column;gap:0;}
+.lsrow{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);}
+.lsrow:last-child{border-bottom:none;}
+.lsn{font-family:'IBM Plex Mono',monospace;font-size:8px;font-weight:700;min-width:58px;}
+.lsct{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;min-width:20px;text-align:right;}
+.lstxt{font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+
+/* TOAST */
+.toast{position:fixed;bottom:22px;right:22px;background:var(--accent);color:#fff;font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:700;padding:10px 18px;letter-spacing:1px;text-transform:uppercase;z-index:9999;transform:translateY(60px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);}
+.toast.show{transform:translateY(0);opacity:1;}
+
+@media(max-width:900px){.app-body{grid-template-columns:1fr;}.right{min-height:520px;border-top:1px solid var(--border);}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:14px;">
+    <div class="logo">HEAT<span>_</span>RISK</div>
+    <div class="vdiv"></div>
+    <input class="map-title-inp" id="mapTitle" value="Análisis de Riesgo Organizacional — 2025">
+  </div>
+  <div class="topbar-right">
+    <span class="theme-lbl" id="thLbl">Oscuro</span>
+    <div class="theme-toggle" onclick="toggleTheme()"></div>
+    <div class="vdiv"></div>
+    <button class="btn btn-ol" onclick="addRow()">+ Fila</button>
+    <button class="btn btn-ol" onclick="addCol()">+ Col</button>
+    <button class="btn btn-ol" onclick="resetAll()" title="Restablecer">↺</button>
+    <button class="btn btn-ac" onclick="exportPDF()">⬇ PDF</button>
+  </div>
+</div>
+
+<div class="app-body" id="exportRoot">
+
+  <!-- LEFT -->
+  <div class="left">
+    <div class="cfg-bar">
+      <div class="cg"><span class="cl">Mín</span><input class="ci" type="number" id="minVal" value="0" onchange="refreshAll()"></div>
+      <div class="cdiv"></div>
+      <div class="cg"><span class="cl">Máx</span><input class="ci" type="number" id="maxVal" value="100" onchange="refreshAll()"></div>
+      <div class="cdiv"></div>
+      <div class="cg"><span class="cl">Unidad</span><input class="ci w" type="text" id="unitLabel" value="%" placeholder="% pts $"></div>
+      <div style="margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3)" id="cellCnt"></div>
+    </div>
+
+    <div class="sh">Mapa de Calor</div>
+    <div class="hm-wrap">
+      <table class="hm" id="heatmap"></table>
+    </div>
+
+    <div class="charts-row">
+      <div class="card">
+        <div class="ct">Promedio por Categoría</div>
+        <div class="bar-chart" id="rowChart"></div>
+      </div>
+      <div class="card">
+        <div class="ct">Distribución por Nivel</div>
+        <div class="dist-bars" id="distBars"></div>
+        <div class="dist-lbls" id="distLbls"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="rtabs">
+      <button class="rtab on" data-tab="risks" onclick="switchTab('risks')">⚠ Lista de Riesgos</button>
+      <button class="rtab" data-tab="stats" onclick="switchTab('stats')">◈ Indicadores</button>
+    </div>
+    <div class="rc">
+
+      <!-- RISKS TAB -->
+      <div class="tp on" id="tab-risks">
+        <div class="risk-tb">
+          <input class="rsch" id="rsch" placeholder="Buscar riesgo..." oninput="renderRiskList()">
+          <select class="rfil" id="rfil" onchange="renderRiskList()">
+            <option value="">Todos</option>
+            <option value="5">Crítico</option>
+            <option value="4">Alto</option>
+            <option value="3">Medio</option>
+            <option value="2">Bajo</option>
+            <option value="1">Muy Bajo</option>
+          </select>
+        </div>
+        <div class="rlist" id="riskList"></div>
+        <button class="add-risk" onclick="addRisk()">＋ Nuevo Riesgo</button>
+      </div>
+
+      <!-- STATS TAB -->
+      <div class="tp" id="tab-stats">
+        <div class="card">
+          <div class="ct">Escala de Colores</div>
+          <div class="legend" id="legend"></div>
+        </div>
+        <div class="card">
+          <div class="ct">Indicadores Globales</div>
+          <div class="sg" id="statsGrid"></div>
+        </div>
+        <div class="card">
+          <div class="ct">Riesgos por Nivel</div>
+          <div class="lsum" id="lvlSum"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---- DATA ----
+let rows=["Producción","Finanzas","Marketing","RRHH","Logística","TI"];
+let cols=["Ene","Feb","Mar","Abr","May","Jun"];
+let data=[[72,45,88,30,91,55],[35,60,42,78,25,66],[55,80,65,90,47,73],[20,35,50,40,65,28],[85,70,60,52,75,88],[40,55,72,61,44,82]];
+let risks=[
+  {id:1,name:"Interrupción de cadena de suministro",row:0,col:4,prob:4,impact:5,desc:"Ruptura en proveedores clave afectando línea de producción."},
+  {id:2,name:"Fraude financiero interno",row:1,col:3,prob:3,impact:4,desc:"Irregularidades detectadas en procesos de tesorería."},
+  {id:3,name:"Baja retención de talento",row:3,col:4,prob:4,impact:3,desc:"Alta rotación en áreas críticas de recursos humanos."},
+  {id:4,name:"Fallo en infraestructura TI",row:5,col:5,prob:3,impact:5,desc:"Caída de sistemas core sin plan de contingencia activo."},
+  {id:5,name:"Regulación de datos (GDPR)",row:2,col:3,prob:5,impact:4,desc:"Incumplimiento de normativas de privacidad en campañas."},
+];
+let nid=6, activeId=null;
+
+const LV_CLR=['','#38bdf8','#34d399','#a3e635','#fb923c','#f87171'];
+const LV_NAM=['','Muy Bajo','Bajo','Medio','Alto','Crítico'];
+
+const getMin=()=>parseFloat(document.getElementById('minVal').value)||0;
+const getMax=()=>parseFloat(document.getElementById('maxVal').value)||100;
+const getUnit=()=>document.getElementById('unitLabel').value||'';
+
+function lvlOf(v){const r=getMax()-getMin()||1,p=(v-getMin())/r;if(p<.2)return 1;if(p<.4)return 2;if(p<.6)return 3;if(p<.8)return 4;return 5;}
+function rLvl(r){return Math.min(5,Math.round((r.prob*r.impact)/5));}
+function escH(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+// ---- HEATMAP ----
+function renderHeatmap(){
+  const tbl=document.getElementById('heatmap');
+  tbl.innerHTML='';
+  const u=getUnit();
+  const head=tbl.insertRow();
+  const t0=document.createElement('th');
+  t0.className='rh';
+  t0.innerHTML=`<span style="font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--text3)">CATEGORÍA / PERÍODO</span>`;
+  head.appendChild(t0);
+  cols.forEach((c,j)=>{
+    const th=document.createElement('th');
+    th.innerHTML=`<input class="th-i" value="${escH(c)}" onblur="cols[${j}]=this.value;refreshSidebar();renderRiskList()" onkeydown="if(event.key==='Enter')this.blur()">`;
+    head.appendChild(th);
+  });
+  rows.forEach((r,i)=>{
+    const tr=tbl.insertRow();
+    const td0=document.createElement('td');
+    td0.style.cssText='background:var(--bg2);border:1px solid var(--border);padding:8px 10px;';
+    td0.innerHTML=`<input class="rh-i" value="${escH(r)}" onblur="rows[${i}]=this.value;refreshAll()" onkeydown="if(event.key==='Enter')this.blur()">`;
+    tr.appendChild(td0);
+    cols.forEach((_,j)=>{
+      const td=document.createElement('td');
+      const v=data[i][j],lv=lvlOf(v);
+      td.className=`hc lvl-${lv}`;
+      td.dataset.row=i; td.dataset.col=j;
+      td.innerHTML=`<div class="ci2"><div class="cv">${v}</div><div class="cu">${u}</div></div>`;
+      td.onclick=()=>startEdit(td,i,j);
+      tr.appendChild(td);
+    });
+  });
+  highlightCells();
+  document.getElementById('cellCnt').textContent=`${rows.length}×${cols.length} = ${rows.length*cols.length} celdas`;
+}
+
+function startEdit(td,i,j){
+  if(td.querySelector('.ced')) return;
+  const ov=document.createElement('div');
+  ov.className='ced';
+  ov.innerHTML=`<input type="number" value="${data[i][j]}">`;
+  td.appendChild(ov);
+  const inp=ov.querySelector('input');
+  inp.focus(); inp.select();
+  function commit(){
+    let v=parseFloat(inp.value);
+    if(isNaN(v)) v=data[i][j];
+    v=Math.min(getMax(),Math.max(getMin(),v));
+    data[i][j]=v;
+    const lv=lvlOf(v);
+    td.className=`hc lvl-${lv}`;
+    td.innerHTML=`<div class="ci2"><div class="cv">${v}</div><div class="cu">${getUnit()}</div></div>`;
+    td.dataset.row=i; td.dataset.col=j;
+    td.onclick=()=>startEdit(td,i,j);
+    td.classList.add('cp'); setTimeout(()=>td.classList.remove('cp'),250);
+    highlightCells(); refreshSidebar(); renderRiskList();
+  }
+  inp.onblur=commit;
+  inp.onkeydown=e=>{if(e.key==='Enter')commit();if(e.key==='Escape')ov.remove();};
+}
+
+function highlightCells(){
+  document.querySelectorAll('.hc').forEach(td=>{td.classList.remove('rhl','sel');});
+  risks.forEach(r=>{
+    const td=document.querySelector(`.hc[data-row="${r.row}"][data-col="${r.col}"]`);
+    if(td) td.classList.add('rhl');
+  });
+  if(activeId!=null){
+    const ar=risks.find(x=>x.id===activeId);
+    if(ar){
+      const td=document.querySelector(`.hc[data-row="${ar.row}"][data-col="${ar.col}"]`);
+      if(td){td.classList.remove('rhl');td.classList.add('sel');}
+    }
+  }
+}
+
+// ---- RISK LIST ----
+function renderRiskList(){
+  const q=(document.getElementById('rsch').value||'').toLowerCase();
+  const flt=document.getElementById('rfil').value;
+  let filt=risks.filter(r=>{
+    const mq=!q||r.name.toLowerCase().includes(q)||(r.desc||'').toLowerCase().includes(q);
+    const ml=!flt||String(rLvl(r))===flt;
+    return mq&&ml;
+  }).sort((a,b)=>rLvl(b)-rLvl(a));
+
+  const list=document.getElementById('riskList');
+  if(!filt.length){list.innerHTML=`<div style="text-align:center;padding:20px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">Sin resultados</div>`;return;}
+
+  list.innerHTML=filt.map(r=>{
+    const lv=rLvl(r),sc=r.prob*r.impact,pct=(sc/25*100).toFixed(0);
+    const fc=LV_CLR[lv];
+    const act=r.id===activeId;
+    const rowOpts=rows.map((rn,i)=>`<option value="${i}"${r.row===i?' selected':''}>${escH(rn)}</option>`).join('');
+    const colOpts=cols.map((cn,j)=>`<option value="${j}"${r.col===j?' selected':''}>${escH(cn)}</option>`).join('');
+    return `<div class="rcard${act?' act':''}" id="rc-${r.id}" onclick="selectRisk(${r.id},event)">
+      <div class="rcard-top">
+        <input class="rni" value="${escH(r.name)}" onclick="event.stopPropagation()" onblur="upRisk(${r.id},'name',this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+        <span class="rbadge b${lv}">${LV_NAM[lv]}</span>
+      </div>
+      <div class="rmeta">
+        <div class="rmi"><span class="rml">Fila</span><select class="rms" onclick="event.stopPropagation()" onchange="upRisk(${r.id},'row',parseInt(this.value))">${rowOpts}</select></div>
+        <div class="rmi"><span class="rml">Col</span><select class="rms" onclick="event.stopPropagation()" onchange="upRisk(${r.id},'col',parseInt(this.value))">${colOpts}</select></div>
+        <div class="rmi"><span class="rml">Prob</span><input type="number" class="rmn" min="1" max="5" value="${r.prob}" onclick="event.stopPropagation()" onchange="upRisk(${r.id},'prob',Math.min(5,Math.max(1,parseInt(this.value)||1)))"></div>
+        <div class="rmi"><span class="rml">Imp</span><input type="number" class="rmn" min="1" max="5" value="${r.impact}" onclick="event.stopPropagation()" onchange="upRisk(${r.id},'impact',Math.min(5,Math.max(1,parseInt(this.value)||1)))"></div>
+      </div>
+      <div class="rsb"><div class="rsf" style="width:${pct}%;background:${fc}"></div></div>
+      <textarea class="rdi" placeholder="Descripción del riesgo..." onclick="event.stopPropagation()" onblur="upRisk(${r.id},'desc',this.value)">${escH(r.desc||'')}</textarea>
+      <div class="rfoot"><button class="rdel" onclick="event.stopPropagation();delRisk(${r.id})">✕ Eliminar</button></div>
+    </div>`;
+  }).join('');
+}
+
+function selectRisk(id,e){
+  activeId=(activeId===id)?null:id;
+  highlightCells(); renderRiskList();
+  if(activeId){
+    setTimeout(()=>{
+      const el=document.getElementById(`rc-${id}`);
+      if(el) el.scrollIntoView({behavior:'smooth',block:'nearest'});
+    },50);
+  }
+}
+
+function upRisk(id,field,val){
+  const r=risks.find(x=>x.id===id);
+  if(!r) return;
+  r[field]=val;
+  highlightCells(); renderRiskList(); refreshSidebar();
+}
+
+function addRisk(){
+  const ri=Math.floor(rows.length/2), ci=Math.floor(cols.length/2);
+  const nr={id:nid++,name:`Nuevo Riesgo ${risks.length+1}`,row:ri,col:ci,prob:3,impact:3,desc:''};
+  risks.push(nr);
+  activeId=nr.id;
+  renderRiskList(); highlightCells(); refreshSidebar();
+  setTimeout(()=>{
+    const el=document.getElementById(`rc-${nr.id}`);
+    if(el) el.scrollIntoView({behavior:'smooth',block:'nearest'});
+  },60);
+}
+
+function delRisk(id){
+  risks=risks.filter(r=>r.id!==id);
+  if(activeId===id) activeId=null;
+  renderRiskList(); highlightCells(); refreshSidebar();
+}
+
+// ---- SIDEBAR ----
+function refreshSidebar(){renderLegend();renderStats();renderDistribution();renderRowChart();renderLvlSum();}
+
+function renderLegend(){
+  const mn=getMin(),mx=getMax(),rng=mx-mn||1,u=getUnit();
+  const lvls=[{l:1,lo:0,hi:.2},{l:2,lo:.2,hi:.4},{l:3,lo:.4,hi:.6},{l:4,lo:.6,hi:.8},{l:5,lo:.8,hi:1}];
+  const all=data.flat();
+  document.getElementById('legend').innerHTML=lvls.map(lv=>{
+    const cnt=all.filter(v=>lvlOf(v)===lv.l).length;
+    return `<div class="lr">
+      <div class="lsw" style="background:var(--lvl${lv.l}-bg);border:1px solid var(--lvl${lv.l}-fg)"></div>
+      <span class="ln" style="color:var(--lvl${lv.l}-fg)">${LV_NAM[lv.l]}</span>
+      <span class="lrng">${Math.round(mn+lv.lo*rng)}–${Math.round(mn+lv.hi*rng)}${u}</span>
+      <span class="lc">${cnt}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderStats(){
+  const v=data.flat(),s=v.reduce((a,b)=>a+b,0),u=getUnit();
+  const avg=(s/v.length).toFixed(1),mx=Math.max(...v),mn=Math.min(...v);
+  const sr=[...v].sort((a,b)=>a-b),med=sr.length%2===0?(sr[sr.length/2-1]+sr[sr.length/2])/2:sr[Math.floor(sr.length/2)];
+  const hi=v.filter(x=>lvlOf(x)>=4).length;
+  document.getElementById('statsGrid').innerHTML=`
+    <div class="sb"><div class="sv" style="color:var(--accent)">${avg}${u}</div><div class="sl">Promedio</div></div>
+    <div class="sb"><div class="sv" style="color:var(--lvl5-fg)">${mx}${u}</div><div class="sl">Máximo</div></div>
+    <div class="sb"><div class="sv" style="color:var(--lvl1-fg)">${mn}${u}</div><div class="sl">Mínimo</div></div>
+    <div class="sb"><div class="sv" style="color:var(--lvl4-fg)">${hi}</div><div class="sl">Celdas críticas</div></div>`;
+}
+
+function renderDistribution(){
+  const bk=[0,0,0,0,0];
+  data.flat().forEach(v=>bk[lvlOf(v)-1]++);
+  const mx=Math.max(...bk)||1;
+  document.getElementById('distBars').innerHTML=bk.map((b,i)=>`<div class="db" style="height:${(b/mx*100).toFixed(0)}%;background:${LV_CLR[i+1]};opacity:.85" data-tip="${LV_NAM[i+1]}: ${b}"></div>`).join('');
+  document.getElementById('distLbls').innerHTML=LV_NAM.slice(1).map(n=>`<div class="dl">${n.substring(0,3)}</div>`).join('');
+}
+
+function renderRowChart(){
+  const u=getUnit(),avgs=rows.map((_,i)=>+(data[i].reduce((a,b)=>a+b,0)/data[i].length).toFixed(1));
+  const mx=Math.max(...avgs)||1;
+  document.getElementById('rowChart').innerHTML=avgs.map((av,i)=>`
+    <div class="br">
+      <div class="bl">${escH(rows[i])}</div>
+      <div class="bt"><div class="bf" style="width:${(av/mx*100).toFixed(1)}%;background:${LV_CLR[lvlOf(av)]}"></div><div class="bv">${av}${u}</div></div>
+    </div>`).join('');
+}
+
+function renderLvlSum(){
+  const byl={1:[],2:[],3:[],4:[],5:[]};
+  risks.forEach(r=>{const l=rLvl(r);if(byl[l])byl[l].push(r.name);});
+  document.getElementById('lvlSum').innerHTML=[5,4,3,2,1].map(lv=>`
+    <div class="lsrow">
+      <span class="lsn" style="color:${LV_CLR[lv]}">${LV_NAM[lv]}</span>
+      <span class="lsct" style="color:${LV_CLR[lv]}">${byl[lv].length}</span>
+      <span class="lstxt">${byl[lv].slice(0,2).map(n=>escH(n)).join(', ')+(byl[lv].length>2?'…':'')}</span>
+    </div>`).join('');
+}
+
+// ---- CONTROLS ----
+function addRow(){rows.push(`Fila ${rows.length+1}`);data.push(cols.map(()=>Math.round(Math.random()*70+15)));refreshAll();}
+function addCol(){cols.push(`P${cols.length+1}`);data.forEach(r=>r.push(Math.round(Math.random()*70+15)));refreshAll();}
+function resetAll(){
+  rows=["Producción","Finanzas","Marketing","RRHH","Logística","TI"];
+  cols=["Ene","Feb","Mar","Abr","May","Jun"];
+  data=[[72,45,88,30,91,55],[35,60,42,78,25,66],[55,80,65,90,47,73],[20,35,50,40,65,28],[85,70,60,52,75,88],[40,55,72,61,44,82]];
+  risks=[
+    {id:1,name:"Interrupción de cadena de suministro",row:0,col:4,prob:4,impact:5,desc:"Ruptura en proveedores clave."},
+    {id:2,name:"Fraude financiero interno",row:1,col:3,prob:3,impact:4,desc:"Irregularidades en tesorería."},
+    {id:3,name:"Baja retención de talento",row:3,col:4,prob:4,impact:3,desc:"Alta rotación en áreas críticas."},
+    {id:4,name:"Fallo en infraestructura TI",row:5,col:5,prob:3,impact:5,desc:"Caída de sistemas core."},
+    {id:5,name:"Regulación de datos (GDPR)",row:2,col:3,prob:5,impact:4,desc:"Incumplimiento de privacidad."},
+  ];
+  nid=6; activeId=null; refreshAll(); showToast('Datos restablecidos');
+}
+function refreshAll(){renderHeatmap();refreshSidebar();renderRiskList();}
+
+// ---- THEME ----
+function toggleTheme(){
+  const d=document.documentElement,dark=d.getAttribute('data-theme')==='dark';
+  d.setAttribute('data-theme',dark?'light':'dark');
+  document.getElementById('thLbl').textContent=dark?'Claro':'Oscuro';
+}
+
+// ---- TABS ----
+function switchTab(name){
+  document.querySelectorAll('.rtab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
+  document.querySelectorAll('.tp').forEach(p=>p.classList.toggle('on',p.id==='tab-'+name));
+}
+
+// ---- PDF ----
+async function exportPDF(){
+  showToast('Generando PDF…');
+  const title=document.getElementById('mapTitle').value||'Mapa de Calor';
+  const root=document.getElementById('exportRoot');
+  document.querySelector('.topbar').style.visibility='hidden';
+  await new Promise(r=>setTimeout(r,80));
+  try{
+    const canvas=await html2canvas(root,{
+      backgroundColor:document.documentElement.getAttribute('data-theme')==='light'?'#f0f4fb':'#080b12',
+      scale:1.7,useCORS:true,logging:false
+    });
+    const {jsPDF}=window.jspdf;
+    const pdf=new jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
+    const W=297,H=210,ratio=Math.min((W-14)/canvas.width,(H-26)/canvas.height);
+    const iw=canvas.width*ratio,ih=canvas.height*ratio,ix=(W-iw)/2,iy=21;
+    const dark=document.documentElement.getAttribute('data-theme')==='dark';
+    pdf.setFillColor(dark?8:240,dark?11:244,dark?18:251); pdf.rect(0,0,W,H,'F');
+    pdf.setFillColor(dark?14:3,dark?25:105,dark?32:161); pdf.rect(0,0,W,13,'F');
+    pdf.setTextColor(255,255,255); pdf.setFontSize(10); pdf.setFont('helvetica','bold');
+    pdf.text(title.toUpperCase(),11,8.5);
+    pdf.setFontSize(7);
+    const now=new Date();
+    pdf.text(`${now.toLocaleDateString('es-CL')} — ${risks.length} riesgos`,W-10,8.5,{align:'right'});
+    pdf.addImage(canvas.toDataURL('image/png'),'PNG',ix,iy,iw,ih);
+    pdf.setFillColor(dark?14:220,dark?19:232,dark?32:248); pdf.rect(0,H-7,W,7,'F');
+    pdf.setTextColor(dark?60:120,dark?80:140,dark?110:170); pdf.setFontSize(6);
+    pdf.text('HEAT_RISK Editor',10,H-2.5);
+    pdf.text('Generado automáticamente',W/2,H-2.5,{align:'center'});
+    pdf.text('Pág. 1',W-10,H-2.5,{align:'right'});
+    pdf.save(`risk_map_${Date.now()}.pdf`);
+    showToast('✓ PDF exportado');
+  } catch(e){showToast('Error al generar');console.error(e);}
+  document.querySelector('.topbar').style.visibility='visible';
+}
+
+function showToast(m){
+  const t=document.getElementById('toast');
+  t.textContent=m; t.classList.add('show');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),3000);
+}
+
+// INIT
+refreshAll();
+</script>
+</body>
+</html>
