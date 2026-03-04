@@ -1,9 +1,9 @@
-#Análisis de Criticidad con Zonas de Calor
+## Análisis de Criticidad con Zonas de Calor
 
 Este proyecto permite realizar un análisis de criticidad de empresas mediante el uso de zonas de calor (heatmaps), facilitando la identificación visual de riesgos y prioridades.
 El resultado del análisis puede ser exportado a PDF para su uso en informes, presentaciones ejecutivas o auditorías.
 
-#🚀 Características principales
+## 🚀 Características principales
 
 Análisis de criticidad basado en impacto y probabilidad
 
@@ -15,7 +15,7 @@ Exportación de resultados a formato PDF
 
 Enfoque orientado a toma de decisiones y gestión de riesgos
 
-#🧠 Objetivo del proyecto
+## 🧠 Objetivo del proyecto
 
 Proporcionar una herramienta sencilla y visual que permita:
 
@@ -25,7 +25,7 @@ Priorizar acciones de mitigación
 
 Mejorar la comunicación de riesgos a equipos técnicos y ejecutivos
 
-#🛠️ Tecnologías utilizadas
+## 🛠️ Tecnologías utilizadas
 
 
 
@@ -54,7 +54,7 @@ Resumen de criticidad
 
 Información clara y presentable para stakeholders
 
-#📌 Uso
+##📌 Uso
 
 Cargar los datos de las empresas
 
@@ -64,7 +64,7 @@ Generar la visualización por zonas de calor
 
 Exportar el resultado a PDF
 
-# 📈 Casos de uso
+## 📈 Casos de uso
 
 Gestión de riesgos
 
@@ -76,8 +76,15 @@ Informes ejecutivos
 
 Priorización de controles
 
-# Print de Aplicación 
+## Print de Aplicación 
 
+Mapa_v7
 <img width="780" height="869" alt="imagen" src="https://github.com/user-attachments/assets/007cf92a-0cbf-403f-bc2e-a62a6f14080f" />
+
+Mapa_v5
+<img width="1890" height="907" alt="imagen" src="https://github.com/user-attachments/assets/2a58998d-5216-4d4a-beec-5779a6bc1555" />
+
+
+## Las versiones 1,2,3 { Contienen error en el CSS}
 
 
